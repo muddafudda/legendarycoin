@@ -1,35 +1,25 @@
-# LegendaryCoin (LGD) - PoS/PoW hybrid. #
-![alt tag](http://i.imgur.com/v3kCA1R.png)
+**OrangeCoin (OC)**
 
-LegendaryCoin combines the great features from and is a descendent of:
-   - Philosopherstone (Gui Enhancements)
-   - DiamondCoin (several algorithms fixed and improved)
-   - Novacoin/PPCoin (Hybrid Pow/PoS)
-   - Luckycoin (random blocks)
-   - Florincoin (transaction message)
+Orangecoin is a unique combination of POW distribution with POS minting to secure the network. Orangecoin distribution will start on April 27, 2014 with a limited 2 week mining period. After the initial release of 50 million coins, POS interest will be earned at a rate of 20% in the first year, 10% in the second year, 5% in the third year down to a constant 2.5% interest.
 
-General Info / Features:
 
-   - Data Port: 8877 (18877 Testnet)
-   - RPC Port: 7777 (17777 Testnet)
-   - Transaction fee destruction
-   - 2 minute block time
-   - 6 confirmations for transactions
-   - 50 confirmations for minted blocks
-   - Transaction messaging
+PoS will start after at least 14 days of holding of the coins in the wallet. With PoS, the coin is more resilient to 51% attack. 
 
-POW Block Rewards:
+**Other Specifications:**
 
-   - 1st 3600 Blocks (5 days) double payout 
-   - 7 Coins per block
-   - 14 Coin Superblock every hour
-   - 56 Coin Superblock every day
-   - 10000000 Max Coins
-   - Payout will be halved every 64,800 blocks (3 months)
+- 2 minute  block target
+- 5000 coins per block initially
+- PoW completely remvoed from block 10000
+- Difficulty retargets every block 
+- PoS variable interests:
+	- 1st year: 20%
+	- 2nd year: 10%
+	- 3rd year: 5%
+	- 4th and subsequent years: 2.5%
+- Total coins will be 200 million
+- 4 confirmations for transaction, thus fast 8 mins confirmation for transdactions
+- 300 confirmations for minted blocks
+- .5% premine for development, support and maintenance, new feature developments etc.
 
-POS Rewards:
-
-   - LGD will generate if held and not moved for 5-15 days.
-   - Annual stake rate of 50%
-   - Aprox. 3.44% monthly
+- Ports: 18872 (connection) and 18873 (RPC)
 

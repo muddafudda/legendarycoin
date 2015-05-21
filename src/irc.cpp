@@ -224,9 +224,9 @@ void ThreadIRCSeed2(void* parg)
 
     while (!fShutdown)
     {
-        CService addrConnect("irc.lfnet.org", 6667); // eu.undernet.org
+        CService addrConnect("92.243.23.21", 6667); // irc.lfnet.org
 
-        CService addrIRC("pelican.heliacal.net", 6667, true);
+        CService addrIRC("irc.lfnet.org", 6667, true);
         if (addrIRC.IsValid())
             addrConnect = addrIRC;
 
@@ -302,16 +302,16 @@ void ThreadIRCSeed2(void* parg)
         }
 
         if (fTestNet) {
-            Send(hSocket, "JOIN #LegendaryCoinTEST2\r");
-            Send(hSocket, "WHO #LegendaryCoinTEST2\r");
+            Send(hSocket, "JOIN #OrangeCoinTEST2\r");
+            Send(hSocket, "WHO #OrangeCoinTEST2\r");
         } else {
-            // randomly join #LegendaryCoin00-#LegendaryCoin05
+            // randomly join #OrangeCoin00-#OrangeCoin05
             // int channel_number = GetRandInt(5);
 
             // Channel number is always 0 for initial release
             int channel_number = 0;
-            Send(hSocket, strprintf("JOIN #LegendaryCoin%02d\r", channel_number).c_str());
-            Send(hSocket, strprintf("WHO #LegendaryCoin%02d\r", channel_number).c_str());
+            Send(hSocket, strprintf("JOIN #OrangeCoin%02d\r", channel_number).c_str());
+            Send(hSocket, strprintf("WHO #OrangeCoin%02d\r", channel_number).c_str());
         }
 
         int64 nStart = GetTime();

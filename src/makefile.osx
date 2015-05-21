@@ -21,7 +21,6 @@ LIBPATHS= \
 
 USE_UPNP:=1
 USE_IPV6:=1
-USE_LEVELDB:=1
 
 LIBS= -dead_strip
 
@@ -120,25 +119,10 @@ ifneq (${USE_IPV6}, -)
 	DEFS += -DUSE_IPV6=$(USE_IPV6)
 endif
 
-all: legendarycoind
+all: orangecoind
 
-#
-# LevelDB support
-#
-ifdef USE_LEVELDB
-LIBS += $(CURDIR)/leveldb/libleveldb.a $(CURDIR)/leveldb/libmemenv.a
-DEFS += $(addprefix -I,$(CURDIR)/leveldb/include) -DUSE_LEVELDB
-DEFS += $(addprefix -I,$(CURDIR)/leveldb/helpers)
-OBJS += obj/txdb-leveldb.o
-leveldb/libleveldb.a:
-  @echo "Building LevelDB ..."; cd leveldb; make; cd ..
-obj/txdb-leveldb.o: leveldb/libleveldb.a
-else
-OBJS += obj/txdb-bdb.o
-endif
-
-test check: test_legendarycoin FORCE
-	./test_legendarycoin
+test check: test_orangecoin FORCE
+	./test_orangecoin
 
 # auto-generated dependencies:
 -include obj/*.P
@@ -162,7 +146,7 @@ obj/scrypt-x86.o: scrypt-x86.S
 obj/scrypt-x86_64.o: scrypt-x86_64.S
 	$(CXX) -c $(xCXXFLAGS) -MMD -o $@ $<
 
-legendarycoind: $(OBJS:obj/%=obj/%)
+orangecoind: $(OBJS:obj/%=obj/%)
 	$(CXX) $(CFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS)
 
 TESTOBJS := $(patsubst test/%.cpp,obj-test/%.o,$(wildcard test/*.cpp))
@@ -174,11 +158,11 @@ obj-test/%.o: test/%.cpp
 	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	  rm -f $(@:%.o=%.d)
 
-test_legendarycoin: $(TESTOBJS) $(filter-out obj/init.o,$(OBJS:obj/%=obj/%))
+test_orangecoin: $(TESTOBJS) $(filter-out obj/init.o,$(OBJS:obj/%=obj/%))
 	$(CXX) $(CFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS) $(TESTLIBS)
 
 clean:
-	-rm -f legendarycoind test_legendarycoin
+	-rm -f orangecoind test_orangecoin
 	-rm -f obj/*.o
 	-rm -f obj-test/*.o
 	-rm -f obj/*.P

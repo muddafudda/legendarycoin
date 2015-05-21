@@ -5,12 +5,61 @@
 
 #include "main.h"
 #include "db.h"
-#include "txdb.h"
 #include "init.h"
 #include "bitcoinrpc.h"
 
 using namespace json_spirit;
 using namespace std;
+
+Value getgenerate(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error(
+            "getgenerate\n"
+            "Returns true or false.");
+
+    return GetBoolArg("-gen");
+}
+
+
+Value setgenerate(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 2)
+        throw runtime_error(
+            "setgenerate <generate> [genproclimit]\n"
+            "<generate> is true or false to turn generation on or off.\n"
+            "Generation is limited to [genproclimit] processors, -1 is unlimited.");
+
+    bool fGenerate = true;
+    if (params.size() > 0)
+        fGenerate = params[0].get_bool();
+
+    if (params.size() > 1)
+    {
+        int nGenProcLimit = params[1].get_int();
+        mapArgs["-genproclimit"] = itostr(nGenProcLimit);
+        if (nGenProcLimit == 0)
+            fGenerate = false;
+    }
+    mapArgs["-gen"] = (fGenerate ? "1" : "0");
+
+    GenerateBitcoins(fGenerate, pwalletMain);
+    return Value::null;
+}
+
+
+Value gethashespersec(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error(
+            "gethashespersec\n"
+            "Returns a recent hashes per second performance measurement while generating.");
+
+    if (GetTimeMillis() - nHPSTimerStart > 8000)
+        return (boost::int64_t)0;
+    return (boost::int64_t)dHashesPerSec;
+}
+
 
 Value getmininginfo(const Array& params, bool fHelp)
 {
@@ -19,72 +68,22 @@ Value getmininginfo(const Array& params, bool fHelp)
             "getmininginfo\n"
             "Returns an object containing mining-related information.");
 
-    double dStakeKernelsTriedAvg = 0;
-    int nPoWInterval = 72, nPoSInterval = 72, nStakesHandled = 0, nStakesTime = 0;
-    int64 nTargetSpacingWorkMin = 2, nTargetSpacingWork = 2;
-
-    CBlockIndex* pindex = pindexGenesisBlock;
-    CBlockIndex* pindexPrevWork = pindexGenesisBlock;
-    CBlockIndex* pindexPrevStake = NULL;
-
-    while (pindex)
-    {
-        if (pindex->IsProofOfWork())
-        {
-            int64 nActualSpacingWork = pindex->GetBlockTime() - pindexPrevWork->GetBlockTime();
-            nTargetSpacingWork = ((nPoWInterval - 1) * nTargetSpacingWork + nActualSpacingWork + nActualSpacingWork) / (nPoWInterval + 1);
-            nTargetSpacingWork = max(nTargetSpacingWork, nTargetSpacingWorkMin);
-            pindexPrevWork = pindex;
-        }
-
-        pindex = pindex->pnext;
-    }
-
-
-    pindex = pindexBest;
-
-    while (pindex && nStakesHandled < nPoSInterval)
-    {
-        if (pindex->IsProofOfStake())
-        {
-            dStakeKernelsTriedAvg += GetDifficulty(pindex) * 4294967296;
-            nStakesTime += pindexPrevStake ? (pindexPrevStake->nTime - pindex->nTime) : 0;
-            pindexPrevStake = pindex;
-            nStakesHandled++;
-        }
-
-        pindex = pindex->pprev;
-    }
-
-    //double dNetworkMhps = GetDifficulty() * 4294.967296 / nTargetSpacingWork;
-    double dNetworkWeight = dStakeKernelsTriedAvg / nStakesTime;
-    if ( dNetworkWeight != dNetworkWeight )
-    {
-        dNetworkWeight = 0;
-    }
-
     Object obj;
-    obj.push_back(Pair("blocks", (int)nBestHeight));
+    obj.push_back(Pair("blocks",        (int)nBestHeight));
     obj.push_back(Pair("currentblocksize",(uint64_t)nLastBlockSize));
     obj.push_back(Pair("currentblocktx",(uint64_t)nLastBlockTx));
-    obj.push_back(Pair("difficulty", (double)GetDifficulty()));
-    obj.push_back(Pair("networkhashps", getnetworkhashps(params, false)));
-    //obj.push_back(Pair("blockvalue", (uint64_t)GetProofOfWorkReward(GetLastBlockIndex(pindexBest, false)->nBits)));
-    //obj.push_back(Pair("powmhashps", dNetworkMhps));
-    obj.push_back(Pair("netstakeweight", dNetworkWeight));
-    obj.push_back(Pair("errors", GetWarnings("statusbar")));
-    obj.push_back(Pair("pooledtx", (uint64_t)mempool.size()));
-    obj.push_back(Pair("belowweight", (uint64_t)pwalletMain->GetStakeWeight(*pwalletMain, STAKE_BELOWMIN)));
-    obj.push_back(Pair("stakeweight", (uint64_t)pwalletMain->GetStakeWeight(*pwalletMain, STAKE_NORMAL)));
-    obj.push_back(Pair("minweight", (uint64_t)pwalletMain->GetStakeWeight(*pwalletMain, STAKE_MINWEIGHT)));
-    obj.push_back(Pair("maxweight", (uint64_t)pwalletMain->GetStakeWeight(*pwalletMain, STAKE_MAXWEIGHT)));
-    obj.push_back(Pair("StakeReadyLGD", ((uint64_t)pwalletMain->GetStakeWeight(*pwalletMain, STAKE_NORMAL))/730));
-    //obj.push_back(Pair("stakeinterest", (uint64_t)GetProofOfStakeReward(0, GetLastBlockIndex(pindexBest, true)->nBits, GetLastBlockIndex(pindexBest, true)->nTime, true)));
-    obj.push_back(Pair("testnet", fTestNet));
+    obj.push_back(Pair("difficulty",    (double)GetDifficulty()));
+    obj.push_back(Pair("errors",        GetWarnings("statusbar")));
+    obj.push_back(Pair("generate",      GetBoolArg("-gen")));
+    obj.push_back(Pair("genproclimit",  (int)GetArg("-genproclimit", -1)));
+    obj.push_back(Pair("hashespersec",  gethashespersec(params, false)));
+	obj.push_back(Pair("networkhashps", getnetworkhashps(params, false)));
+    obj.push_back(Pair("pooledtx",      (uint64_t)mempool.size()));
+    obj.push_back(Pair("testnet",       fTestNet));
     return obj;
 }
 
-// LGD: Return average network hashes per second based on last number of blocks.
+// Litecoin: Return average network hashes per second based on last number of blocks.
 Value GetNetworkHashPS(int lookup) {
     if (pindexBest == NULL)
         return 0;
@@ -128,10 +127,10 @@ Value getworkex(const Array& params, bool fHelp)
         );
 
     if (vNodes.empty())
-        throw JSONRPCError(-9, "LegendaryCoin is not connected!");
+        throw JSONRPCError(-9, "OrangeCoin is not connected!");
 
     if (IsInitialBlockDownload())
-        throw JSONRPCError(-10, "LegendaryCoin is downloading blocks...");
+        throw JSONRPCError(-10, "OrangeCoin is downloading blocks...");
 
     typedef map<uint256, pair<CBlock*, CScript> > mapNewBlock_t;
     static mapNewBlock_t mapNewBlock;
@@ -262,10 +261,10 @@ Value getwork(const Array& params, bool fHelp)
             "If [data] is specified, tries to solve the block and returns true if it was successful.");
 
     if (vNodes.empty())
-        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "LegendaryCoin is not connected!");
+        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "OrangeCoin is not connected!");
 
     if (IsInitialBlockDownload())
-        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "LegendaryCoin is downloading blocks...");
+        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "OrangeCoin is downloading blocks...");
 
     typedef map<uint256, pair<CBlock*, CScript> > mapNewBlock_t;
     static mapNewBlock_t mapNewBlock;    // FIXME: thread safety
@@ -406,10 +405,10 @@ Value getblocktemplate(const Array& params, bool fHelp)
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid mode");
 
     if (vNodes.empty())
-        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "LegendaryCoin is not connected!");
+        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "OrangeCoin is not connected!");
 
     if (IsInitialBlockDownload())
-        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "LegendaryCoin is downloading blocks...");
+        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "OrangeCoin is downloading blocks...");
 
     static CReserveKey reservekey(pwalletMain);
 

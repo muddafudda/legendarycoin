@@ -45,7 +45,7 @@ void OptionsModel::Init()
     bDisplayAddresses = settings.value("bDisplayAddresses", false).toBool();
     fMinimizeToTray = settings.value("fMinimizeToTray", false).toBool();
     fMinimizeOnClose = settings.value("fMinimizeOnClose", false).toBool();
-    fCoinControlFeatures = settings.value("fCoinControlFeatures", false).toBool();
+	fCoinControlFeatures = settings.value("fCoinControlFeatures", false).toBool();
     nTransactionFee = settings.value("nTransactionFee").toLongLong();
     language = settings.value("language", "").toString();
 
@@ -284,8 +284,9 @@ qint64 OptionsModel::getTransactionFee()
 
 bool OptionsModel::getCoinControlFeatures()
 {
-    return fCoinControlFeatures;
+     return fCoinControlFeatures;
 }
+ 
 
 bool OptionsModel::getMinimizeToTray()
 {

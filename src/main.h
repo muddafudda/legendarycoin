@@ -29,16 +29,15 @@ static const unsigned int MAX_BLOCK_SIZE = 1000000;
 static const unsigned int MAX_BLOCK_SIZE_GEN = MAX_BLOCK_SIZE/2;
 static const unsigned int MAX_BLOCK_SIGOPS = MAX_BLOCK_SIZE/50;
 static const unsigned int MAX_ORPHAN_TRANSACTIONS = MAX_BLOCK_SIZE/100;
-static const unsigned int MAX_TX_COMMENT_LEN = 140; // LegendaryCoin: 128 bytes + little extra
 static const unsigned int MAX_INV_SZ = 50000;
-static const int64 MIN_TX_FEE = 1 * CENT;
-static const int64 MIN_RELAY_TX_FEE = 0.1 * CENT;
-static const int64 MAX_MONEY = 10000000 * COIN;
-static const int64 PREMINE = 300000 * COIN; // 3% Premine for promotion of coin
-static const int64 MAX_MINT_PROOF_OF_WORK = 7 * COIN;
-static const int64 MAX_MINT_PROOF_OF_WORK_LEGACY = 7 * COIN;
-static const int64 MAX_MINT_PROOF_OF_STAKE = 0.50 * MAX_MINT_PROOF_OF_WORK;	// 50% annual interest
-
+static const int64 MIN_TX_FEE = 10 * CENT;
+static const int64 MIN_RELAY_TX_FEE = 10 * CENT;
+static const int64 MAX_MONEY = 200000000 * COIN;			// 70 bil
+static const int64 CIRCULATION_MONEY = MAX_MONEY;
+static const double TAX_PERCENTAGE = 0.005;
+static const int64 MAX_MINT_PROOF_OF_STAKE = 0.025 * COIN;	// 5% annual interest
+static const int CUTOFF_POW_BLOCK = 10000;
+static const int START_POS_BLOCK = 9998;
 static const int64 MIN_TXOUT_AMOUNT = MIN_TX_FEE;
 
 inline bool MoneyRange(int64 nValue) { return (nValue >= 0 && nValue <= MAX_MONEY); }
@@ -51,9 +50,8 @@ static const int fHaveUPnP = true;
 static const int fHaveUPnP = false;
 #endif
 
-static const uint256 hashGenesisBlockOfficial("0x00000f4cec95a0c855af867017436d6dfdc90c6b79b8d7768b1147fd1297d88c");
-static const uint256 hashGenesisBlockTestNet ("0x00000f4cec95a0c855af867017436d6dfdc90c6b79b8d7768b1147fd1297d88c");
-static const uint256 hashGenesisTransaction  ("0xce158ed8aac7a6d042980b49421ea6af8784f403e203a476103cd72e898c44a8");
+static const uint256 hashGenesisBlockOfficial("0x00000b5971b075ecf2b729ebafaf00122832946b7ede395521ee2715a422aa1a");
+static const uint256 hashGenesisBlockTestNet ("0x00000b5971b075ecf2b729ebafaf00122832946b7ede395521ee2715a422aa1a");
 
 static const int64 nMaxClockDrift = 2 * 60 * 60;        // two hours
 
@@ -87,7 +85,6 @@ extern std::map<uint256, CBlock*> mapOrphanBlocks;
 
 // Settings
 extern int64 nTransactionFee;
-extern bool fUseFastIndex;
 
 // Minimum disk space required - used in CheckDiskSpace()
 static const uint64 nMinDiskSpace = 52428800;
@@ -110,14 +107,16 @@ CBlockIndex* FindBlockByHeight(int nHeight);
 bool ProcessMessages(CNode* pfrom);
 bool SendMessages(CNode* pto, bool fSendTrickle);
 bool LoadExternalBlockFile(FILE* fileIn);
+void GenerateBitcoins(bool fGenerate, CWallet* pwallet);
 CBlock* CreateNewBlock(CWallet* pwallet, bool fProofOfStake=false);
 void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& nExtraNonce);
 void FormatHashBuffers(CBlock* pblock, char* pmidstate, char* pdata, char* phash1);
 bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey);
 bool CheckProofOfWork(uint256 hash, unsigned int nBits);
 int64 GetProofOfWorkReward(int nHeight, int64 nFees, uint256 prevHash);
-int64 GetProofOfStakeReward(int64 nCoinAge, unsigned int nBits, unsigned int nTime);
+int64 GetProofOfStakeReward(int64 nCoinAge, unsigned int nBits, unsigned int nTime, int nHeight);
 unsigned int ComputeMinWork(unsigned int nBase, int64 nTime);
+unsigned int ComputeMinStake(unsigned int nBase, int64 nTime, unsigned int nBlockTime);
 int GetNumBlocksOfPeers();
 bool IsInitialBlockDownload();
 std::string GetWarnings(std::string strFor);
@@ -432,15 +431,13 @@ typedef std::map<uint256, std::pair<CTxIndex, CTransaction> > MapPrevTx;
 class CTransaction
 {
 public:
-    static const int LEGACY_VERSION_1=1;
-	static const int CURRENT_VERSION = 2;
+    static const int CURRENT_VERSION=1;
 
     int nVersion;
     unsigned int nTime;
     std::vector<CTxIn> vin;
     std::vector<CTxOut> vout;
     unsigned int nLockTime;
-	std::string strTxComment;
 
     // Denial-of-service detection:
     mutable int nDoS;
@@ -459,8 +456,6 @@ public:
         READWRITE(vin);
         READWRITE(vout);
         READWRITE(nLockTime);
-		if(this->nVersion > LEGACY_VERSION_1) { 
-        READWRITE(strTxComment); }
 	)
 
     void SetNull()
@@ -471,7 +466,6 @@ public:
         vout.clear();
         nLockTime = 0;
         nDoS = 0;  // Denial-of-service prevention
-		strTxComment.clear();
     }
 
     bool IsNull() const
@@ -530,18 +524,6 @@ public:
         return fNewer;
     }
 
-    bool IsGenesis() const
-    {
-      if (vin.size() == 0)
-	return false;
-
-	BOOST_FOREACH(const CTxIn& tx, vin)
-	  if (tx.prevout.hash == hashGenesisTransaction)
-	    return true;
-
-	  return false;
-    }
-
     bool IsCoinBase() const
     {
         return (vin.size() == 1 && vin[0].prevout.IsNull() && vout.size() >= 1);
@@ -553,10 +535,11 @@ public:
         return (vin.size() > 0 && (!vin[0].prevout.IsNull()) && vout.size() >= 2 && vout[0].IsEmpty());
     }
 
-    bool IsCoinBaseOrStake() const
+	bool IsCoinBaseOrStake() const
     {
         return (IsCoinBase() || IsCoinStake());
     }
+
 
     /** Check for standard transaction types
         @return True if all outputs (scriptPubKeys) use only standard transaction forms
@@ -613,11 +596,11 @@ public:
     {
         // Large (in bytes) low-priority (new, small-coin) transactions
         // need a fee.
-        return dPriority > COIN * 720 / 250;
+        return dPriority > COIN * 2880 / 250;
     }
 
     int64 GetMinFee(unsigned int nBlockSize=1, bool fAllowFree=false, enum GetMinFee_mode mode=GMF_BLOCK, unsigned int nBytes = 0) const;
-	
+
     bool ReadFromDisk(CDiskTxPos pos, FILE** pfileRet=NULL)
     {
         CAutoFile filein = CAutoFile(OpenBlockFile(pos.nFile, 0, pfileRet ? "rb+" : "rb"), SER_DISK, CLIENT_VERSION);
@@ -670,14 +653,13 @@ public:
     {
         std::string str;
         str += IsCoinBase()? "Coinbase" : (IsCoinStake()? "Coinstake" : "CTransaction");
-        str += strprintf("(hash=%s, nTime=%d, ver=%d, vin.size=%"PRIszu", vout.size=%"PRIszu", nLockTime=%d)\nTxComment=%s\n",
+        str += strprintf("(hash=%s, nTime=%d, ver=%d, vin.size=%"PRIszu", vout.size=%"PRIszu", nLockTime=%d)\n",
             GetHash().ToString().substr(0,10).c_str(),
             nTime,
             nVersion,
             vin.size(),
             vout.size(),
-            nLockTime,
-			strTxComment.substr(0,30).c_str()
+            nLockTime
 			);
 
         for (unsigned int i = 0; i < vin.size(); i++)
@@ -1258,14 +1240,7 @@ public:
         return (int64)nTime;
     }
 
-    CBigNum GetBlockTrust() const
-    {
-        CBigNum bnTarget;
-        bnTarget.SetCompact(nBits);
-        if (bnTarget <= 0)
-            return 0;
-        return (IsProofOfStake()? (CBigNum(1)<<256) / (bnTarget+1) : 1);
-    }
+    CBigNum GetBlockTrust() const;
 
     bool IsInMainChain() const
     {
@@ -1377,9 +1352,6 @@ public:
 /** Used to marshal pointers into hashes for db storage. */
 class CDiskBlockIndex : public CBlockIndex
 {
-private:
-    uint256 blockHash;
-
 public:
     uint256 hashPrev;
     uint256 hashNext;
@@ -1388,7 +1360,6 @@ public:
     {
         hashPrev = 0;
         hashNext = 0;
-        blockHash = 0;
     }
 
     explicit CDiskBlockIndex(CBlockIndex* pindex) : CBlockIndex(*pindex)
@@ -1430,13 +1401,10 @@ public:
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
-        READWRITE(blockHash);
     )
 
     uint256 GetBlockHash() const
     {
-        if (fUseFastIndex && (nTime < GetAdjustedTime() - 12 * nMaxClockDrift) && blockHash != 0)
-			return blockHash;
         CBlock block;
         block.nVersion        = nVersion;
         block.hashPrevBlock   = hashPrev;
@@ -1444,9 +1412,9 @@ public:
         block.nTime           = nTime;
         block.nBits           = nBits;
         block.nNonce          = nNonce;
-        const_cast<CDiskBlockIndex*>(this)->blockHash = block.GetHash();
-        return blockHash;
-}
+        return block.GetHash();
+    }
+
 
     std::string ToString() const
     {

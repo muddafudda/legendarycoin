@@ -4,73 +4,32 @@ Bitcoin-qt: Qt4 GUI for Bitcoin
 Build instructions
 ===================
 
-Debian and Ubuntu
+Debian
 -------
 
-First, make sure that you have the required repositories:
-open: Synaptic Package Manager > Settings > Other Software > Add...
-or
-Modify your source list using - nano /etc/apt/sources.list
-add
-::
+First, make sure that the required packages for Qt4 development of your
+distribution are installed.
 
-    deb http://cz.archive.ubuntu.com/ubuntu lucid main 
-    
+On recent Ubuntu releases, the `libdb4.8++-dev` package is not in the default
+repositories. However it's in the bitcoin repository, which we can add
+with:
 
-Second, install the required packages for Qt4 development of your
-distribution are installed, for Debian and Ubuntu these are:
+    apt-add-repository ppa:bitcoin/bitcoin
 
-Do not manually update the following packages.
+Then we need to make sure our build environment is up to date. For Debian and Ubuntu:
 
 ::
 
-    sudo apt-get install qt4-qmake libqt4-dev build-essential libboost-dev libboost-system-dev 
-    
-    
-::
+    apt-get install qt4-qmake libqt4-dev build-essential libboost-dev libboost-system-dev \
+        libboost-filesystem-dev libboost-program-options-dev libboost-thread-dev \
+        libssl-dev libdb4.8++-dev libminiupnpc-dev libminiupnpc8
 
-
-    sudo apt-get install libboost-filesystem-dev libboost-program-options-dev libboost-thread-dev
-        
-
-
-::
-
-
-    sudo apt-get install libssl-dev libdb4.8++-dev libdb4.8-dev libdb4.8++ libdb4.8 libqtwebkit-dev
-
-
-::
-
-
-    sudo apt-get install miniupnpc libminiupnpc-dev
-    
-    
-    
-
-Third, execute the following:
+then execute the following:
 
 ::
 
     qmake
-    
-    
-::
-
-
     make
-
-
-Can take awhile depending on your system performance. After it completes and returns to ~$, no errors are returned.
-
-Execute client:
-::
-
-
-    sudo open ./philosopherstone-qt
-    
-    
----
 
 Alternatively, install Qt Creator and open the `bitcoin-qt.pro` file.
 

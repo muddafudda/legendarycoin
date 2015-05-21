@@ -1,4 +1,3 @@
-// Copyright (c) 2014 Legendarycoin
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2012 The Bitcoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
@@ -6,7 +5,6 @@
 
 #include "walletdb.h"
 #include "wallet.h"
-#include <boost/version.hpp>
 #include <boost/filesystem.hpp>
 
 using namespace std;

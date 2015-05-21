@@ -5,7 +5,7 @@
 #include <boost/assign/list_of.hpp>
 
 #include "kernel.h"
-#include "txdb.h"
+#include "db.h"
 
 using namespace std;
 
@@ -13,30 +13,34 @@ extern int nStakeMaxAge;
 extern int nStakeTargetSpacing;
 
 // Modifier interval: time to elapse before new modifier is computed
-// Set to 6-hour for production network and 20-minute for test network
+// Set to 3-hour for production network and 20-minute for test network
 
 unsigned int nModifierInterval = MODIFIER_INTERVAL;
 
 // Hard checkpoints of stake modifiers to ensure they are deterministic
 static std::map<int, unsigned int> mapStakeModifierCheckpoints =
     boost::assign::map_list_of
-         (    0, 0x0fd11f4e7 )
-         (  500, 0x0e5cfda20 )
-         ( 1000, 0x0d38023b8 )
-         ( 2000, 0x02b2e4a47 )
-         ( 3000, 0x096b942ea )
-         ( 4000, 0x057e7ef79 )
-         ( 5000, 0x0ae9d47e7 )
-         ( 7500, 0x09804178b )
-         (10000, 0x07071999a )
-         (10750, 0x08747b6b2 )
-         (11928, 0x07ea4b243 )
-         (12500, 0x0a54a80e9 )
-         (15000, 0x04c2d2198 )
-         (17500, 0x06b68309e )
-         (19800, 0x04335b8d0 )
+	(     0, 0xfd11f4e7u )
+	(     2, 0xdd3b157eu )
+	(     3, 0x730b8e92u )
+	(     10, 0xd4787f16u )
+	(     9000, 0xb30f08d7u )
+	(     9999, 0xb2aeade8u ) 
+	(     13300, 0xbcce1a3eu ) 
+	(     20000, 0x1039f4afu ) 
+	(     23107, 0xc93eba00u ) 
 
-    ;
+	;	
+
+// Get time weight
+int64 GetWeight(int64 nIntervalBeginning, int64 nIntervalEnd)
+{
+    // Kernel hash weight starts from 0 at the min age
+    // this change increases active coins participating the hash and helps
+    // to secure the network when proof-of-stake difficulty is low
+
+    return min(nIntervalEnd - nIntervalBeginning - nStakeMinAge, (int64)nStakeMaxAge);
+}
 
 // Get the last stake modifier and its generation time from a given block
 static bool GetLastStakeModifier(const CBlockIndex* pindex, uint64& nStakeModifier, int64& nModifierTime)
@@ -245,13 +249,8 @@ static bool GetKernelStakeModifier(uint256 hashBlockFrom, uint64& nStakeModifier
             else
 			{
 				// printf(">> nStakeModifierTime = %"PRI64d", pindexFrom->GetBlockTime() = %"PRI64d", nStakeModifierSelectionInterval = %"PRI64d"\n",
-				//	nStakeModifierTime, pindexFrom->GetBlockTime(), nStakeModifierSelectionInterval);
-                if (fDebug)
-		  return error("GetKernelStakeModifier() : new future block ( nStakeModifierTime = %"PRI64d", pindexFrom->GetBlockTime() = %"PRI64d", nStakeModifierSelectionInterval = %"PRI64d" )\n",
-                  nStakeModifierTime, pindexFrom->GetBlockTime(), nStakeModifierSelectionInterval);
-		else
-		  return false;
-			  
+				// 	nStakeModifierTime, pindexFrom->GetBlockTime(), nStakeModifierSelectionInterval);
+                return false;
 			}
         }
         pindex = pindex->pnext;
@@ -316,11 +315,10 @@ bool CheckStakeKernelHash(unsigned int nBits, const CBlock& blockFrom, unsigned 
 
     if (!GetKernelStakeModifier(blockFrom.GetHash(), nStakeModifier, nStakeModifierHeight, nStakeModifierTime, fPrintProofOfStake))
 	{
-	  if (fDebug)
-	    return error("CheckStakeKernelHash() : GetKernelStakeModifier return false\n");
-	  else
-	    return false;
+		// printf(">>> CheckStakeKernelHash: GetKernelStakeModifier return false\n");
+        return false;
 	}
+	// printf(">>> CheckStakeKernelHash: passed GetKernelStakeModifier\n");
     ss << nStakeModifier;
 
     ss << nTimeBlockFrom << nTxPrevOffset << txPrev.nTime << prevout.n << nTimeTx;
@@ -340,17 +338,14 @@ bool CheckStakeKernelHash(unsigned int nBits, const CBlock& blockFrom, unsigned 
     }
 
     // Now check if proof-of-stake hash meets target protocol
-	
     if (CBigNum(hashProofOfStake) > bnCoinDayWeight * bnTargetPerCoinDay)
 	{
 		// printf(">>> bnCoinDayWeight = %s, bnTargetPerCoinDay=%s\n", 
 		//	bnCoinDayWeight.ToString().c_str(), bnTargetPerCoinDay.ToString().c_str()); 
 		// printf(">>> CheckStakeKernelHash - hashProofOfStake too much\n");
-        if (fDebug)
-	  return error("CheckStakeKernelHash() : proof-of-stake hash does not meet target protocol");
-	else
-	  return false;
+        return false;
 	}
+
 
     if (fDebug && !fPrintProofOfStake)
     {
@@ -383,6 +378,7 @@ bool CheckProofOfStake(const CTransaction& tx, unsigned int nBits, uint256& hash
     CTxIndex txindex;
     if (!txPrev.ReadFromDisk(txdb, txin.prevout, txindex))
         return tx.DoS(1, error("CheckProofOfStake() : INFO: read txPrev failed"));  // previous transaction not in main chain, may occur during initial download
+    txdb.Close();
 
     // Verify signature
     if (!VerifySignature(txPrev, tx, 0, true, 0))
@@ -425,6 +421,8 @@ bool CheckStakeModifierCheckpoints(int nHeight, unsigned int nStakeModifierCheck
 {
     if (fTestNet) return true; // Testnet has no checkpoints
     if (mapStakeModifierCheckpoints.count(nHeight))
+	{
         return nStakeModifierChecksum == mapStakeModifierCheckpoints[nHeight];
+	}
     return true;
 }

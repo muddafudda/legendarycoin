@@ -99,6 +99,7 @@ enum threadId
     THREAD_SOCKETHANDLER,
     THREAD_OPENCONNECTIONS,
     THREAD_MESSAGEHANDLER,
+    THREAD_MINER,
     THREAD_RPCLISTENER,
     THREAD_UPNP,
     THREAD_DNSSEED,
@@ -241,7 +242,7 @@ public:
         setInventoryKnown.max_size(SendBufferSize() / 1000);
 
         // Be shy and don't send version until we hear
-        if (hSocket != INVALID_SOCKET && !fInbound)
+        if (!fInbound)
             PushVersion();
     }
 
@@ -640,6 +641,15 @@ public:
     bool Misbehaving(int howmuch); // 1 == a little, 100 == a lot
     void copyStats(CNodeStats &stats);
 };
+
+
+
+
+
+
+
+
+
 
 inline void RelayInventory(const CInv& inv)
 {
